@@ -1,0 +1,33 @@
+cache:
+  paths:
+    - node_modules/
+
+stages: # Stages 表示构建阶段，这里有两个阶段 install, deploy
+  - deployServer
+
+deployServer:
+  stage: deployServer
+  only:
+    - master
+  tags:
+    - fan10.88.10.38
+  before_script:
+    - npm i --registry https://registry.npm.taobao.org
+    - >
+      if [[ -n $(sudo docker ps|grep bigdata_travel_filling_server9098) ]]; then 
+        sudo docker stop bigdata_travel_filling_server9098 
+        sudo docker rm bigdata_travel_filling_server9098 
+      fi
+
+  script:
+    - echo "=====start dedeployServerv build======"
+    - sudo docker build --build-arg version="$(date '+%Y%m%d')" -t bigdata-travel-filling-server .
+    - sudo docker tag bigdata-travel-filling-server hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filling-server:latest
+    - sudo docker login -u fanjf -p Nanhu@123 hub.security.nanhulab.ac.cn
+    - sudo docker push  hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filling-server
+    - sudo docker run -d --net=host -v /home/fanjf/webNginx/createDoc/config:/usr/src/app/config -v /home/fanjf/webNginx/createDoc/file:/usr/src/app/file --name=bigdata_travel_filling_server9098 --restart=on-failure:5 hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filling-server
+  after_script:
+    - >
+      if [[ -n $(sudo docker images|grep none|grep bigdata-travel-filling-server) ]]; then 
+        sudo docker images|grep none|grep bigdata-travel-filling-server|awk '{print $3}'|xargs sudo docker rmi -f
+      fi

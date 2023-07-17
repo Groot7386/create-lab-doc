@@ -1,0 +1,39 @@
+cache:
+  paths:
+    - node_modules/
+
+stages: # Stages 表示构建阶段，这里有两个阶段 install, deploy
+  - buildDev #联调环境的编译任务名
+
+buildDev:
+  stage: buildDev
+  only:
+    - master
+  tags:
+    - fan10.88.10.38
+  before_script:
+    - npm i --registry=https://registry.npm.taobao.org
+  script:
+    - echo "=====start dev build======"
+    - whoami
+    - >
+      if [[ -n $(sudo docker ps | grep bigdata_travel_filing_9099 ) ]]; then 
+        sudo docker stop bigdata_travel_filing_9099 
+        sudo docker rm bigdata_travel_filing_9099 
+      fi
+    - npm run build 
+    - cp -r ./dist ./docker
+    - cd ./docker
+    - sudo docker build --build-arg version="$(date '+%Y%m%d %H%M%S')" -t bigdata-travel-filing .
+    #  - docker tag data-rental-dev-client nanhulab/data-rental-dev-client
+    - sudo docker tag bigdata-travel-filing hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filing:latest
+    #  - docker login -u zhichaoyan -p 123456yan
+    - sudo docker login -u fanjf -p Nanhu@123 hub.security.nanhulab.ac.cn
+    - sudo docker push hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filing
+    - sudo docker run -d --net=host -v /home/fanjf/webNginx/createDoc/config:/usr/share/nginx/html/config -v /home/fanjf/webNginx/createDoc/file:/usr/share/nginx/html/file --name=bigdata_travel_filing_9099 --restart=on-failure:5 hub.security.nanhulab.ac.cn/weidefen/bigdata-travel-filing
+    - echo "=====end dev build======"
+  after_script:
+    - >
+      if [[ -n $(sudo docker images|grep none|grep bigdata-travel-filing) ]]; then 
+        sudo docker images|grep none|grep bigdata-travel-filing|awk '{print $3}'|xargs sudo docker rmi -f
+      fi
